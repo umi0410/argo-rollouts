@@ -1,0 +1,38 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: argo-rollouts-notification-configmap
+data:
+  trigger.on-jinsu-rollout-updated: |
+    - send: [jinsu-rollout-updated]
+      # from zach
+      # JINSU: abort 후 undo 했을 때는 기본 템플릿은 updated가 되는데
+      # 내 템플릿에서는 updated가 인식은 안되고 completed가 되어버림.
+      when: rollout.metadata.labels != nil && rollout.metadata.labels["component"] == "jinsu" && rollout.status != nil && rollout.status.stableRS != rollout.status.currentPodHash && (rollout.status.abort == nil || rollout.status.abort == false)
+      oncePer: rollout.metadata.annotations["rollout.argoproj.io/revision"]
+  template.jinsu-rollout-updated: |
+    message: 'jinsu-Rollout {{.rollout.metadata.name}} has been updated. (revision: {{ index .rollout.metadata.annotations "rollout.argoproj.io/revision" }})'
+    email:
+      subject: Rollout {{.rollout.metadata.name}} has been updated.
+    slack:
+      attachments: |
+          [{
+            "title": "{{ .rollout.metadata.name}}",
+            "color": "#005599",
+            "fields": [
+            {
+              "title": "Strategy",
+              "value": "{{if .rollout.spec.strategy.blueGreen}}BlueGreen{{end}}{{if .rollout.spec.strategy.canary}}Canary{{end}}",
+              "short": true
+            }
+            {{range $index, $c := .rollout.spec.template.spec.containers}}
+              {{if not $index}},{{end}}
+              {{if $index}},{{end}}
+              {
+                "title": "{{$c.name}}",
+                "value": "{{$c.image}}",
+                "short": true
+              }
+            {{end}}
+            ]
+          }]

@@ -1,0 +1,36 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: argo-rollouts-notification-configmap
+data:
+  trigger.on-jinsu-rollout-completed: |
+    - send: [jinsu-rollout-completed]
+      # from zach
+      when: rollout.metadata.labels != nil && rollout.metadata.labels["component"] == "jinsu" && rollout.status != nil && rollout.metadata.generation == int(rollout.status.observedGeneration) && rollout.status.currentPodHash == rollout.status.stableRS && ((rollout.spec.strategy.canary != nil && rollout.spec.strategy.canary.steps != nil && rollout.status.currentStepIndex == len(rollout.spec.strategy.canary.steps)) || rollout.spec.strategy.blueGreen != nil) && (rollout.status.abort == nil || rollout.status.abort == false)
+      oncePer: rollout.metadata.annotations["rollout.argoproj.io/revision"]
+  template.jinsu-rollout-completed: |
+    message: 'jinsu-Rollout {{.rollout.metadata.name}} has been completed. (revision: {{ index .rollout.metadata.annotations "rollout.argoproj.io/revision" }})'
+    email:
+      subject: Rollout {{.rollout.metadata.name}} has been completed.
+    slack:
+      attachments: |
+          [{
+            "title": "{{ .rollout.metadata.name}}",
+            "color": "#005599",
+            "fields": [
+            {
+              "title": "Strategy",
+              "value": "{{if .rollout.spec.strategy.blueGreen}}BlueGreen{{end}}{{if .rollout.spec.strategy.canary}}Canary{{end}}",
+              "short": true
+            }
+            {{range $index, $c := .rollout.spec.template.spec.containers}}
+              {{if not $index}},{{end}}
+              {{if $index}},{{end}}
+              {
+                "title": "{{$c.name}}",
+                "value": "{{$c.image}}",
+                "short": true
+              }
+            {{end}}
+            ]
+          }]

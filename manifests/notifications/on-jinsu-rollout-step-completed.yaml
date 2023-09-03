@@ -1,0 +1,42 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: argo-rollouts-notification-configmap
+data:
+  trigger.on-jinsu-rollout-step-completed: |
+    - send: [jinsu-rollout-step-completed]
+      when: rollout.metadata.labels != nil && rollout.metadata.labels["component"] == "jinsu" && rollout.status != nil && rollout.status.currentStepIndex != 0 && rollout.spec.strategy.canary.steps[rollout.status.currentStepIndex - 1]["pause"] == nil
+      oncePer: rollout.metadata.annotations["rollout.argoproj.io/revision"] + rollout.status.currentStepHash
+  # 원래 template에서는 currentStepIndex + 1을 해주던데
+  # event 기반에서는 +1을 하지 않아도 된다.
+  template.jinsu-rollout-step-completed: |
+    message: 'jinsu-Rollout {{.rollout.metadata.name}} step number {{ .rollout.status.currentStepIndex }}/{{len .rollout.spec.strategy.canary.steps}} has been completed. (revision: {{ index .rollout.metadata.annotations "rollout.argoproj.io/revision" }})'
+    email:
+      subject: Rollout {{.rollout.metadata.name}} step number {{ .rollout.status.currentStepIndex}}/{{len .rollout.spec.strategy.canary.steps}} has been completed.
+    slack:
+      attachments: |
+          [{
+            "title": "{{ .rollout.metadata.name}}",
+            "color": "#005599",
+            "fields": [
+            {
+              "title": "Strategy",
+              "value": "{{if .rollout.spec.strategy.blueGreen}}BlueGreen{{end}}{{if .rollout.spec.strategy.canary}}Canary{{end}}",
+              "short": true
+            },
+            {
+              "title": "Step completed",
+              "value": "{{ .rollout.status.currentStepIndex }}/{{len .rollout.spec.strategy.canary.steps}}",
+              "short": true
+            }
+            {{range $index, $c := .rollout.spec.template.spec.containers}}
+              {{if not $index}},{{end}}
+              {{if $index}},{{end}}
+              {
+                "title": "{{$c.name}}",
+                "value": "{{$c.image}}",
+                "short": true
+              }
+            {{end}}
+            ]
+          }]

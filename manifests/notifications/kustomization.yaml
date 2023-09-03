@@ -14,3 +14,8 @@ patchesStrategicMerge:
   - on-analysis-run-running.yaml
   - on-analysis-run-error.yaml
   - on-analysis-run-failed.yaml
+  - on-jinsu-rollout-aborted.yaml
+  - on-jinsu-rollout-completed.yaml
+  - on-jinsu-rollout-paused.yaml
+  - on-jinsu-rollout-step-completed.yaml
+  - on-jinsu-rollout-updated.yaml

@@ -1,0 +1,39 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: argo-rollouts-notification-configmap
+data:
+  trigger.on-jinsu-rollout-aborted: |
+    - send: [jinsu-rollout-aborted]
+      # from zach
+      # JINSU: aborted -> 새로운 revision으로 수정하면
+      #        abort가 한 번 더, 그리고 불필요한 updated, completed이 적용된다.
+      #        -> updated와 completed에 abort == nil || abort != true 조건을 추가함
+      when: rollout.metadata.labels != nil && rollout.metadata.labels["component"] == "jinsu" && rollout.status != nil && rollout.status.currentPodHash != rollout.status.stableRS && rollout.status.abort == true && rollout.status.abortedAt != nil
+      oncePer: rollout.status.abortedAt
+  template.jinsu-rollout-aborted: |
+    message: 'jinsu-Rollout {{.rollout.metadata.name}} has been aborted. (revision: {{ index .rollout.metadata.annotations "rollout.argoproj.io/revision" }})'
+    email:
+      subject: Rollout {{.rollout.metadata.name}} has been aborted.
+    slack:
+      attachments: |
+          [{
+            "title": "{{ .rollout.metadata.name}}",
+            "color": "#000000",
+            "fields": [
+            {
+              "title": "Strategy",
+              "value": "{{if .rollout.spec.strategy.blueGreen}}BlueGreen{{end}}{{if .rollout.spec.strategy.canary}}Canary{{end}}",
+              "short": true
+            }
+            {{range $index, $c := .rollout.spec.template.spec.containers}}
+              {{if not $index}},{{end}}
+              {{if $index}},{{end}}
+              {
+                "title": "{{$c.name}}",
+                "value": "{{$c.image}}",
+                "short": true
+              }
+            {{end}}
+            ]
+          }]
